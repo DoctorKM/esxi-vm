@@ -1,8 +1,10 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
+import re
+import sys
 import argparse                   # Argument parser
 
-from esxi_vm_functions import *
+from esxi_vm_functions import setup_config, save_config, exec_ssh_command, get_esxi_version, connect_to_esxi, the_current_date_time
 
 
 # Defaults and Variable setup
@@ -51,7 +53,7 @@ parser.add_argument("-T", "--Port", dest='PORT', type=int, help="ESXi Port numbe
 parser.add_argument("-U", "--User", dest='USER', type=str, help="ESXi Host username ({})".format(USER))
 parser.add_argument("-P", "--Password", dest='PASSWORD', type=str, help="ESXi Host password (*****)")
 parser.add_argument("-K", "--Key", dest='KEY', type=str, help="ESXi Host path to private key ({})".format(KEY))
-parser.add_argument("-n", "--name", dest='NAME', type=str, help="VM name ()".format(NAME))
+parser.add_argument("-n", "--name", dest='NAME', type=str, help="VM name ({})".format(NAME))
 parser.add_argument("-c", "--cpu", dest='CPU', type=int, help="Number of vCPUS ({})".format(CPU))
 parser.add_argument("-m", "--mem", type=int, help="Memory in GB ({})".format(MEM))
 parser.add_argument("-v", "--vdisk", dest='HDISK', type=str, help="Size of virt hdisk ({})".format(HDISK))
@@ -291,19 +293,15 @@ except Exception as e:
     pass
 
 vmx = {
-    'config.version': '8',
-    'virtualHW.version': '8',
-    'vmci0.present': 'TRUE',
+    '.encoding': 'UTF-8',
     'displayName': NAME,
-    'floppy0.present': 'FALSE',
+    'guestOS': GUESTOS,
+    'nvram': '88-TEST.nvram',
+    'virtualHW.version': '15',
+    'config.version': '8',
     'numvcpus': CPU,
-    'scsi0.present': 'TRUE',
-    'scsi0.sharedBus': 'none',
-    'scsi0.virtualDev': 'pvscsi',
+    'cpuid.coresPerSocket': '2',
     'memsize': str(MEM * 1024),
-    'scsi0:0.present': 'TRUE',
-    'scsi0:0.fileName': "{}.vmdk".format(NAME),
-    'scsi0:0.deviceType': 'scsi-hardDisk',
     'pciBridge0.present': 'TRUE',
     'pciBridge4.present': 'TRUE',
     'pciBridge4.virtualDev': 'pcieRootPort',
@@ -317,30 +315,74 @@ vmx = {
     'pciBridge7.present': 'TRUE',
     'pciBridge7.virtualDev': 'pcieRootPort',
     'pciBridge7.functions': '8',
-    'guestOS': GUESTOS
+    'vmci0.present': 'TRUE',
+    'svga.autodetect': 'true',
+    'mks.enable3d': 'true',
+    'mks.use3dRenderer': 'automatic',
+    'svga.graphicsMemorySizeInKB': '524288',
+    'svga.vramSize': '4194304',
+    'scsi0:0.present': 'TRUE',
+    'scsi0:0.deviceType': 'scsi-hardDisk',
+    'scsi0:0.fileName': "{}.vmdk".format(NAME),
+    'scsi0.present': 'TRUE',
+    'scsi0.virtualDev': 'lsilogic',
+    'floppy0.present': 'FALSE',
+    'vmci0.unrestricted': 'false',
+    'vcpu.hotadd': 'true',
+    'vcpu.hotremove': 'false',
+    'mem.hotadd': 'true',
+    'firmware': 'efi',
+    'sched.cpu.shares': '2000',
+    'sched.cpu.level': 'normal',
+    'tools.syncTime': 'false',
+    'toolscripts.afterpoweron': 'true',
+    'toolscripts.afterresume': 'true',
+    'toolscripts.beforepoweroff': 'true',
+    'toolscripts.beforesuspend': 'true',
+    'tools.upgrade.policy': 'manual',
+    'powerType.powerOff': 'hard',
+    'powerType.reset': 'hard',
+    'powerType.suspend': 'hard',
+    'vhv.enable': 'false',
+    'vvtd.enable': 'false',
+    'windows.vbs.enabled': 'false',
+    'uefi.secureBoot.enabled': 'false',
+    'chipset.onlineStandby': 'FALSE',
+    'virtualHW.productCompatibility': 'hosted',
 }
 
 if ISO == "":
     vmx.update({
-        'ide1:0.present': 'TRUE',
-        'ide1:0.fileName': 'emptyBackingString',
-        'ide1:0.deviceType': 'atapi-cdrom',
-        'ide1:0.startConnected': 'FALSE',
-        'ide1:0.clientDevice': 'TRUE'
+        'sata0:1.fileName': 'emptyBackingString',
+        'sata0:1.clientDevice': 'TRUE',
+        'sata0:1.present': 'TRUE',
+        'sata0:1.deviceType': 'cdrom-image',
+        'sata0:1.autodetect': 'TRUE',
+        'sata0:1.startConnected': 'FALSE',
+        'sata0:1.allowguestconnectioncontrol': 'true',
+        'sata0.present': 'TRUE'
     })
 else:
     vmx.update({
-        'ide1:0.present': 'TRUE',
-        'ide1:0.fileName': ISO,
-        'ide1:0.deviceType': 'atapi-cdrom',
-        'ide1:0.startConnected': 'TRUE',
+        'sata0:1.fileName': ISO,
+        'sata0:1.clientDevice': 'TRUE',
+        'sata0:1.present': 'TRUE',
+        'sata0:1.deviceType': 'cdrom-image',
+        'sata0:1.autodetect': 'TRUE',
+        'sata0:1.startConnected': 'TRUE',
+        'sata0:1.allowguestconnectioncontrol': 'true',
+        'sata0.present': 'TRUE'
     })
 
 if NET != "None":
     vmx.update({
-        'ethernet0.virtualDev': 'vmxnet3',
         'ethernet0.present': 'TRUE',
-        'ethernet0.networkName': NET
+        'ethernet0.virtualDev': 'e1000',
+        'ethernet0.connectionType': 'bridged',
+        'ethernet0.startConnected': 'TRUE',
+        'ethernet0.wakeonpcktrcv': 'true',
+        'ethernet0.allowguestconnectioncontrol': 'true',
+        'ethernet0.networkName': NET,
     })
     if MAC == "":
         vmx.update({'ethernet0.addressType': 'generated'})
@@ -411,7 +453,7 @@ LogOutput += '"Store":"{}","Store Used":"{}",'.format(STORE, DSPATH)
 LogOutput += '"Network":"{}",'.format(NET)
 LogOutput += '"ISO":"{}","ISO used":"{}",'.format(ISOarg, ISO)
 LogOutput += '"Guest OS":"{}",'.format(GUESTOS)
-LogOutput += '"MAC":"{}","MAC Used":"'.format(MACarg, GeneratedMAC)
+LogOutput += '"MAC":"{}","MAC Used":"{}"'.format(MACarg, GeneratedMAC)
 LogOutput += '"Dry Run":"{}","Verbose":"{}",'.format(isDryRun, isVerbose)
 if ErrorMessages != "":
     LogOutput += '"Error Message":"{}",'.format(ErrorMessages)

@@ -250,19 +250,13 @@ This fork
 
 This is a fork. Summary of changes in this fork:
 
-* Fix a bug in the `vmx` file generation (double quotes missing)
-* Migrate to Python 3, as [Python 2 is soon dead](https://pythonclock.org)
-* Add parameters `--port` and `--key` (SSH port number and private key)
-* Verbose is now more verbose (it displays also SSH commands)
-* By default, does **not** write to log file
-* `esxi-vm-destroy` is documented
-* Move some common code in `esxi-vm-create` and `esxi-vm-destroy` to `esxi_vm_functions.py`
-* Code cleaning (work in progress)
+* Fix a bug in the `vmx` file generation (ESXi 6.7)
 
 Copyrights
 ----------
 
-* **This fork** Copyright &copy; 2018 Sebastien Andrivet
+* **This fork of a fork** Copyright &copy; 2021 Mikołaj Kacper Doktór
+* **[Oiginal fork](https://github.com/andrivet/esxi-vm)** Copyright &copy; 2018 Sebastien Andrivet
 * **[Oiginal code](https://github.com/josenk/esxi-vm-create)** Copyright &copy; 2017 Jonathan Senkerik
 
 License
